@@ -1,0 +1,96 @@
+GeoMates Project — Final Status
+Architecture: Dual-Process (Hybrid Cognitive-Algorithmic)
+System 1 (ACT-R — model-geomates.lisp): Tactical perception-action loop
+
+Visual perception of scene (platforms, diamonds, agents)
+Motor execution of primitive actions (a/d/w/s/space)
+Vocal/aural inter-agent communication (NEED-ASSIST / ASSIST-READY / ASSIST-DONE)
+Meta-cognitive monitoring (stuck detection)
+
+System 2 (Python — geomates_v8.py): Strategic deliberation
+
+D* Lite pathfinding over platform graph
+Diamond selection with task allocation
+Failure analysis, diamond blacklisting, and map updating
+ASSIST coordination (bridge/lift protocols)
+Dynamic virtual platforms (rect as graph node)
+
+
+Completed Work Packages
+WP3 — ACT-R Production Rules for Perceptual-Motor Loop ✅
+23 production rules in model-geomates.lisp:
+
+Role identification (P1): wait-for-role, found-role-disc, found-role-rect
+Visual confirmation (P2): confirm-disc-visual, finalize-disc-identity, confirm-rect-visual, finalize-rect-identity
+Strategic planning (P3): request-disc-plan, request-rect-plan (bridge to Python)
+Tactical execution (P4): move-left-production, move-right-production, jump-or-stretch-production, stop-or-shrink-production, hold-position-production
+Stuck monitoring (P5): detect-stuck-state (meta-cognitive)
+Vocal sending (P6): speak-help-request, speak-assist-acknowledge, speak-assist-complete
+Aural receiving (P7): hear-partner-sound, process-help-request, process-help-acknowledged, process-assist-finished, process-other-message
+
+WP4 — Vocal/Aural Collaboration ✅
+
+Disc sends "NEED-ASSIST" via vocal module when stuck (Python returns "h" action)
+Rect hears and responds "ASSIST-READY" via aural → vocal productions
+Completion signaled by "ASSIST-DONE" speech act
+3-message protocol: request → acknowledge → complete
+File-based IPC (geomates_comms.json) used in parallel for detailed coordination data
+
+WP5 — Role Identification ✅
+
+ACT-R visual search for oval-feature (disc) or polygon-feature (rect)
+Server assignment detected via patched-read-update
+Confirmed via visual attention shift to own agent in scene
+
+WP6 — Failure Analysis & Map Updating ✅
+
+FailureTracker class: edge failure recording, oscillation detection
+D* Lite incremental updates via update_edge_cost()
+Diamond blacklisting with height-based escalation
+Smart avoidance: fails at h=15 → skips h=20 and h=25
+
+WP7 — Collaboration Protocol (ASSIST) ✅
+
+Master/slave: disc requests, rect follows
+BRIDGE: rect positions at gap edge, squishes wide; disc backs up, charges, jumps across
+LIFT: rect positions under diamond, disc boards; rect grows tall, disc launches
+Dynamic virtual platforms: rect added as temporary graph node during ASSIST
+
+
+Implemented Features
+Pathfinding
+
+ D* Lite with admissible heuristic
+ Physics-calibrated edge costs (walk: dist/speed, fall: sqrt(2h/g), jump: difficulty ratio)
+ Dead-end platform penalty (+200 cost, graph stays connected)
+ Rect shape tracking in edge validation (can_fit_gap)
+
+Failure Handling
+
+ Edge failure recording → cost increase → removal after 3 fails
+ Diamond blacklisting with height escalation
+ Oscillation detection (dto sign tracking)
+ Stuck detection at both ACT-R (meta-cognitive) and Python (stuck_limit) levels
+
+Calibration
+
+ PhysicsCalibrator: test jump at level start
+ Measured jump height → 85% safety margin → max_jump_h update
+ Graph rebuild with corrected physics
+
+Collaboration
+
+ Two assist types (BRIDGE + LIFT) per reviewer guidance
+ Vocal/aural protocol via ACT-R modules
+ Dynamic virtual platform (rect as stepping stone)
+ Master/slave architecture (disc leads, rect assists)
+
+
+Test Levels (Reviewer Requested)
+FilePurposeKey Behaviors Testedtest_flat.jsonBasic navigationD* Lite, diamond selection, motor executiontest_heights.jsonJump calibrationPhysics calibrator, height-based filteringtest_failure.jsonFailure trackingEdge failure, D* Lite cost updates, stuck recoverytest_collab.jsonCollaborationBRIDGE + LIFT protocols, vocal/aural comms, virtual platformstest_blacklist.jsonSmart avoidanceDiamond blacklisting, height escalation
+
+Report Notes
+
+Terminology: Use "Dual-Process Architecture" or "Hybrid Cognitive-Algorithmic Architecture" — NOT "neuro-symbolic" (reviewer: no neural component present)
+Cooperation scope: Two assist tasks (lift + bridge) as reviewer advised ("keep cooperation minimal")
+ACT-R justification: Production rules model cognitive plausibility of tactical execution (perception → decision → motor); Python handles computationally intensive strategic planning that would be impractical in pure ACT-R
