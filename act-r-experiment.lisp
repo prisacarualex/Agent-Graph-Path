@@ -261,57 +261,76 @@
 ;;; ================================================================
 
 (defvar *geomates-platforms* nil)
-(defvar *disc-coords* '(0 0)) 
+(defvar *disc-coords* '(0 0))
 (defvar *rect-coords* '(0 0))
-(defvar *visible-diamonds* nil) ;; List of (x y)
-(defvar *my-assigned-role* nil) 
+(defvar *visible-diamonds* nil)
+(defvar *my-assigned-role* nil)
+
+;;; Cognitive monitoring state
+(defvar *last-disc-pos* '(0 0))
+(defvar *last-rect-pos* '(0 0))
+(defvar *stuck-counter* 0)
+(defvar *partner-message* nil)
 
 (defun patched-read-update ()
   (multiple-value-bind (updated-scene err) (ignore-errors (read *gstream* nil nil nil))
     (declare (ignore err))
     (when (consp updated-scene)
-      (delete-all-visicon-features) 
+      (delete-all-visicon-features)
       (setf *geomates-platforms* nil)
-      (setf *visible-diamonds* nil) ;; Clear diamonds
-
+      (setf *visible-diamonds* nil)
       (loop for (what-raw . attributes) in updated-scene
-            for what = (if (keywordp what-raw) what-raw (intern (string-upcase (string what-raw)) :keyword)) do
+            for what = (if (keywordp what-raw) what-raw
+                           (intern (string-upcase (string what-raw)) :keyword))
+            do
         (case what
-          (:playing 
+          (:playing
              (let ((role (first attributes)))
                (setf *my-assigned-role* (string-downcase (string role)))
-               (format *error-output* "~%[LISP] Server assigned role: ~a~%" *my-assigned-role*)))
-
-          (:msg->rect (dolist (msg (first attributes)) (handle-agent-message :rect msg)))
-          (:msg->disc (dolist (msg (first attributes)) (handle-agent-message :disc msg)))
-          (:level (let ((lvl (first attributes)))
-                    (unless (equal *current-level* lvl) (setf *new-level* t *current-level* lvl))))
-          
-          (:platform (destructuring-bind (x1 y1 x2 y2) attributes
-             (let ((cx (* 0.5 (+ x1 x2))) (cy (* 0.5 (+ y1 y2)))
-                   (w (abs (- x2 x1))) (h (abs (- y2 y1))))
-               (push (list "platform" cx cy w h) *geomates-platforms*)
-               (add-visicon-features `(isa polygon-feature screen-x ,cx screen-y ,cy value "platform" height ,h width ,w color black)))))
-          
-          (:disc (destructuring-bind (x y radius diamonds) attributes
-             (declare (ignore diamonds))
-             (setf *disc-coords* (list x y))
-             (add-visicon-features `(isa oval-feature screen-x ,x screen-y ,y value "disc" radius ,radius color yellow))))
-          
-          (:rect (destructuring-bind (x y w h rot d) attributes
-             (declare (ignore rot d))
-             (setf *rect-coords* (list x y))
-             (add-visicon-features `(isa polygon-feature screen-x ,x screen-y ,y value "rect" height ,h width ,w color red))))
-          
-          ;; NEW: Collect ALL diamonds into a list
-          (:diamond (destructuring-bind (x y) attributes
-              (push (list x y) *visible-diamonds*)
-              (add-visicon-features `(isa polygon-feature screen-x ,x screen-y ,y value "diamond" color orange))))
-          )))))
+               (format *error-output* "~%[LISP] Server assigned role: ~a~%"
+                       *my-assigned-role*)))
+          (:msg->rect
+             (dolist (msg (first attributes)) (handle-agent-message :rect msg)))
+          (:msg->disc
+             (dolist (msg (first attributes)) (handle-agent-message :disc msg)))
+          (:level
+             (let ((lvl (first attributes)))
+               (unless (equal *current-level* lvl)
+                 (setf *new-level* t *current-level* lvl))))
+          (:platform
+             (destructuring-bind (x1 y1 x2 y2) attributes
+               (let ((cx (* 0.5 (+ x1 x2)))
+                     (cy (* 0.5 (+ y1 y2)))
+                     (w (abs (- x2 x1)))
+                     (h (abs (- y2 y1))))
+                 (push (list "platform" cx cy w h) *geomates-platforms*)
+                 (add-visicon-features
+                   `(isa polygon-feature screen-x ,cx screen-y ,cy
+                     value "platform" height ,h width ,w color black)))))
+          (:disc
+             (destructuring-bind (x y radius diamonds) attributes
+               (declare (ignore diamonds))
+               (setf *disc-coords* (list x y))
+               (add-visicon-features
+                 `(isa oval-feature screen-x ,x screen-y ,y
+                   value "disc" radius ,radius color yellow))))
+          (:rect
+             (destructuring-bind (x y w h rot d) attributes
+               (declare (ignore rot d))
+               (setf *rect-coords* (list x y))
+               (add-visicon-features
+                 `(isa polygon-feature screen-x ,x screen-y ,y
+                   value "rect" height ,h width ,w color red))))
+          (:diamond
+             (destructuring-bind (x y) attributes
+               (push (list x y) *visible-diamonds*)
+               (add-visicon-features
+                 `(isa polygon-feature screen-x ,x screen-y ,y
+                   value "diamond" color orange)))))))))
 
 (defun poll-game-server ()
   (when (and *gstream* (open-stream-p *gstream*))
-    (format *gstream* " ") 
+    (format *gstream* " ")
     (finish-output *gstream*)
     (patched-read-update)))
 
